@@ -1,0 +1,129 @@
+---
+title: "Assignment"
+author: "Eric Liu"
+date: "2023-01-17"
+output:
+  pdf_document: default
+  html_document:
+    code_folding: hide
+    df_print: paged
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reading and preprocessing data 
+### Clean the datasets
+```{r, message = FALSE}
+detroit = read.csv(file = 'detroit_purchases.csv')
+newyork = read.csv(file = 'new_york_purchases.csv')
+detroit[] = lapply(detroit, gsub, pattern='\\$', replacement='') #Detroit has '$' in the variable 'amount' and which will cause trouble in the following calculation
+detroit[, 1] = as.integer(detroit[, 1]) #Since the first column is char, we need int
+detroit[, 2] = as.numeric(detroit[, 2]) #Since the second column is char, we need num
+detroit[, 3] = as.numeric(detroit[, 3]) #Since the third column is char, we need num
+
+# install.packages("lubridate")
+library(lubridate)
+time =  ymd_hms(detroit$purchase_timestamp, tz = "America/New_York") # Adjust EST time of Detroit data to UTC time 
+detroit$purchase_timestamp = with_tz(time, "UTC")
+detroit$purchase_timestamp
+
+detroit[, 4] = substring(detroit[, 4], 1, 20) # Since there are "UTC" in timestamp for detroit data
+newyork[, 4] = substring(newyork[, 4], 1, 20) # Since there are "+0000" in timestamp for new_york data
+str(detroit)
+str(newyork)
+```
+
+## Assignment 1
+### Normalize the type field to a product line (New_York dataset)
+```{r}
+count_1 = 1
+ny_type_new = list() #create a list for output
+for (x in newyork[ ,5]){
+  if (x %in% c("cakes", "pizzas", "puffs"))
+    ny_type_new[count_1] = print("bakery")
+  else if (x %in% c("milk", "cheese"))
+    ny_type_new[count_1] = print("dairy")
+  else 
+    ny_type_new[count_1] = print("vegetable")
+count_1 = count_1 + 1
+}
+
+newyork$type = ny_type_new
+```
+
+### Merge two CSV files into a single dataset
+```{r}
+data_1 = rbind(detroit, newyork)
+data_1$id = c(1:54) #re-range the id order
+data_1
+```
+
+## Assignment 2
+### Filter the data such that it only contains transactions for 1/2/2023
+```{r}
+a = which(startsWith(data_1$purchase_timestamp, '2023-01-02'))
+data_new = data_1[a, ]
+data_new
+```
+
+## Assignment 3
+### 3.1) Bar chart for total revenue in each product line on 1/2
+```{r, message = FALSE}
+# install.packages("tidyverse")
+library("tidyverse")
+data_new %>% group_by(type) %>% summarise(total_revenue = sum(amount))
+x1 = c("Bakery", "Vegetable", "Diary")
+y1 = c(16.43, 24.08, 14.96)
+total_revenue = data.frame(x1, y1)
+
+bar = barplot(height = total_revenue$y1, names = total_revenue$x1, xlab = "Product", ylab = "Revenue($)", col = "turquoise", 
+      main = "Total Revenue", border = "red", ylim=c(0,30), space = 1, width = 1)
+text(bar, total_revenue$y1 + 2, paste(total_revenue$y1, sep=""), cex = 1) 
+```
+
+### 3.2) Histogram for the number of items purchased for each hour on 1/2
+```{r, warning = FALSE}
+# install.packages("dplyr")
+# install.packages("ggplot2")
+library(dplyr)
+hour = format(as.POSIXct(data_new$purchase_timestamp), format = "%H") #filter out the hour first
+data_new$hour = hour
+number_of_purchase = data_new %>% group_by(hour) %>% summarise(number_of_purchase = n_distinct(id))
+number_of_purchase$hour = sub("^0+", "", number_of_purchase$hour) # get rid of situation like "01", "04",...
+number_of_purchase
+
+count_2 = 1
+time1 = list() #create a list for output
+x2 = c(0:23)
+for (y in x2){
+  if (y %in% number_of_purchase$hour)
+    time1[count_2] = print(number_of_purchase[which(number_of_purchase$hour == y), 2])
+  else 
+    time1[count_2] = print(0)
+count_2 = count_2 + 1
+}
+
+data_2 = data.frame(x2, unlist(time1)) 
+colnames(data_2) <- c('Hour','Number') #clean new data
+data_2[, 2] = as.integer(data_2[, 2])
+
+library(ggplot2)
+ggplot(data_2, aes(x = Number)) + geom_histogram(binwidth = 0.5, color="darkblue", fill="lightblue") + coord_cartesian(ylim=c(1,15)) + 
+  stat_bin(binwidth = 1, geom = 'text', color = 'blue', size = 3, aes(label = ..count..), position = position_stack(vjust = 0.6))
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
